@@ -2,6 +2,6 @@
 
 int main(int argc, char const *argv[]) {
     SLOWS server;
-    server.Listen();
+    server.Listen(8080);
     return 0;
 }

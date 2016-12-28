@@ -1,7 +1,7 @@
 CC=g++
 CCFLAGS=-Wall -Werror -g3 -pedantic -std=c++14 -Wno-sign-compare
 LD=g++
-LDFLAGS=
+LDFLAGS=-pthread
 
 slows: slows.o server.o request.o response.o
 	$(LD) $(LDFLAGS) -o slows slows.o server.o request.o response.o
