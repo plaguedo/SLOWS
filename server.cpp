@@ -1,6 +1,8 @@
 #include "server.h"
 
-SLOWS::SLOWS() {}
+SLOWS::SLOWS() {
+    AllowedMethods = {"GET", "HEAD"};
+}
 
 void SLOWS::Listen(const unsigned short int port) {
     Port = port;
@@ -52,13 +54,22 @@ void SLOWS::Prepare(int clientSocket) {
         method.push_back(c);
         if (method.length() == METHOD_CHAR_CAP) {
             BreakConnection(clientSocket, 400);
+            return;
         }
     }
-    // Method Allow Check
+    bool allow = false;
+    for (auto Method : AllowedMethods)
+        if (method == Method)
+            allow = true;
+    if (!allow) {
+        BreakConnection(clientSocket, 405);
+        return;
+    }
     while (read(clientSocket, &c, sizeof(char)) > 0 && c != ' ') {
         uri.push_back(c);
         if (method.length() == URI_CHAR_CAP) {
             BreakConnection(clientSocket, 400);
+            return;
         }
     }
     while (read(clientSocket, &c, sizeof(char)) > 0 && c != '\n') {
@@ -67,11 +78,14 @@ void SLOWS::Prepare(int clientSocket) {
         protocolVersion.push_back(c);
         if (method.length() == PROTOCOL_CHAR_CAP) {
             BreakConnection(clientSocket, 400);
+            return;
         }
     }
-    if (protocolVersion != "HTTP/1.1")
+    if (protocolVersion != "HTTP/1.1") {
         BreakConnection(clientSocket, 505);
-    SLOWSReq request(method, uri, protocolVersion);
+        return;
+    }
+    SLOWSReq *request = new SLOWSReq(method, uri, protocolVersion);
     while (read(clientSocket, &c, sizeof(char)) > 0 && c != '\n') {
         if (c == '\r')
             continue;
@@ -80,31 +94,82 @@ void SLOWS::Prepare(int clientSocket) {
             headerName.push_back(c);
             if (headerName.length() == LEFT_HEADER_CHAR_CAP) {
                 BreakConnection(clientSocket, 400);
+                delete request;
+                return;
             }
         }
-        if (read(clientSocket, &c, sizeof(char)) <= 0 || c != ' ')
+        if (read(clientSocket, &c, sizeof(char)) <= 0 || c != ' ') {
             BreakConnection(clientSocket, 400);
+            delete request;
+            return;
+        }
         while (read(clientSocket, &c, sizeof(char)) > 0 && c != '\n') {
             if (c == '\r')
                 continue;
             headerValue.push_back(c);
             if (headerValue.length() == RIGHT_HEADER_CHAR_CAP) {
                 BreakConnection(clientSocket, 400);
+                delete request;
+                return;
             }
         }
-        request.pushHeader(headerName, headerValue);
+        request->pushHeader(headerName, headerValue);
         headerName = "";
         headerValue = "";
     }
-    std::cout << "End Parse" << '\n'; // END
-    // Read Body
+    std::cout << "End Parse" << '\n'; // DEL
+    MethodeController(clientSocket, request);
     close(clientSocket);
+    delete request;
 }
-void SLOWS::BreakConnection(int clientSocket, short status) {
-    std::stringstream responseHeaders, responseBody;
+void SLOWS::MethodeController(int clientSocket, SLOWSReq *req) {
+    std::string method = req->getMethod();
+    if (method == "GET") {
+        MethodeGet(clientSocket, req);
+    } else if (method == "HEAD") {
+        MethodeHead(clientSocket, req);
+    } else {
+        BreakConnection(clientSocket, 501);
+        delete req;
+    }
+}
+
+void SLOWS::MethodeGet(int clientSocket, SLOWSReq *req) {
+    // SLOWSRes *res = new SLOWSRes();
+    std::string uri = req->getUri();
+    std::string path = req->getUri();
+    if (access((HomeDir + path).data(), 3) != 0) {
+        BreakConnection(clientSocket, 404);
+        return;
+    }
+    /*std::ofstream file;
+    file.open(path);
+    std::stringstream responseBody;
+    responseBody << file;
+    BreakConnection(clientSocket, 404, responseBody);*/
+
+    int resource = open(path.data(), O_RDONLY);
+    if (resource < 0) {
+        BreakConnection(clientSocket, 404);
+        perror("Open File Error");
+        close(clientSocket);
+        return;
+    }
+    BreakConnection(clientSocket, 200);
+    // res->Send(clientSocket);
+    // delete res;
+}
+void SLOWS::MethodeHead(int clientSocket, SLOWSReq *req) {}
+
+void SLOWS::BreakConnection(int clientSocket, short status,
+                            std::stringstream responseBody) {
+    std::stringstream response;
     std::string statusDescription;
     // Add responseBody
     switch (status) {
+    case 200:
+        statusDescription = "OK";
+        break;
     case 400:
         statusDescription = "Bad Request";
         break;
@@ -169,16 +234,15 @@ void SLOWS::BreakConnection(int clientSocket, short status) {
         statusDescription = "HTTP Version Not Supported";
         break;
     }
-    responseHeaders << "HTTP/1.1 " << status << " " << statusDescription
-                    << "\r\n"
-                    << "Version: HTTP/1.1\r\n"
-                    << "Content-Type: text/html; charset=utf-8\r\n"
-                    << "Content-Length: " << responseBody.str().length()
-                    << "\r\n\r\n"
-                    << responseBody.str();
+    response << "HTTP/1.1 " << status << " " << statusDescription << "\r\n";
+    response << "Version: HTTP/1.1\r\n"
+             << "Content-Type: text/html; charset=utf-8\r\n";
+    response << "Content-Length: " << responseBody.str().length();
+    response << "\r\n\r\n";
+    response << responseBody.str();
 
-    int result = send(clientSocket, responseHeaders.str().c_str(),
-                      responseHeaders.str().length(), 0);
+    int result =
+        send(clientSocket, response.str().c_str(), response.str().length(), 0);
     if (result == -1) {
         perror("Socket send Error");
         close(clientSocket);

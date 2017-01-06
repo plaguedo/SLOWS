@@ -19,6 +19,12 @@ class SLOWSReq {
     void setMethod(std::string method);
     void setUri(std::string uri);
     void setProtocolVersion(std::string protocolVersion);
+
+    std::string getMethod();
+    std::string getUri();
+    std::string getProtocolVersion();
+    std::map<std::string, std::string> getHeaders();
+
     void pushHeader(std::string name, std::string value);
 
     virtual ~SLOWSReq();
