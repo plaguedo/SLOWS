@@ -117,7 +117,6 @@ void SLOWS::Prepare(int clientSocket) {
         headerName = "";
         headerValue = "";
     }
-    // std::cout << "End Parse" << '\n'; // DEL
     MethodeController(clientSocket, request);
     close(clientSocket);
     delete request;
@@ -205,9 +204,8 @@ void SLOWS::MethodeHead(int clientSocket, SLOWSReq *req, SLOWSRes *res) {
     file.close();
 }
 
-void SLOWS::BreakConnection(int clientSocket, short status,
-                            std::stringstream responseBody) {
-    std::stringstream response;
+void SLOWS::BreakConnection(int clientSocket, short status) {
+    std::stringstream response, responseBody;
     std::string statusDescription;
     switch (status) {
     case 200:

@@ -36,11 +36,10 @@ class SLOWS {
   public:
     SLOWS();
 
-    void Listen(const unsigned short int port = 8080);
+    void Listen(const unsigned short port = 8080);
     void Static(std::string path = "~/.SLOWS");
     void Prepare(int clientSocket);
-    void BreakConnection(int clientSocket, short status,
-                         std::stringstream responseBody = std::stringstream());
+    void BreakConnection(int clientSocket, short status);
     void MethodeController(int clientSocket, SLOWSReq *req);
 
     void MethodeGet(int clientSocket, SLOWSReq *req, SLOWSRes *res);
