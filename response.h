@@ -1,6 +1,7 @@
 #ifndef SLOWS_RESPONSE
 #define SLOWS_RESPONSE
 
+#include <iostream>
 #include <map>
 #include <sstream>
 #include <string>
@@ -9,12 +10,16 @@
 
 class SLOWSRes {
   private:
-    short Status;
+    short Status = 200;
+    std::string StatusDescription = "OK";
     std::map<std::string, std::string> Headers;
 
   public:
     SLOWSRes();
-    void Send(int clientSocket, short status = 200);
+    void Send(int clientSocket);
+    void Send(int clientSocket, std::string body);
+    void PushHeader(std::string name, std::string value);
+    void SetStatus(short status);
     virtual ~SLOWSRes();
 };
 

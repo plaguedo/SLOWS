@@ -3,7 +3,10 @@
 SLOWSReq::SLOWSReq() {}
 SLOWSReq::SLOWSReq(std::string method, std::string uri,
                    std::string protocolVersion)
-    : Method(method), Uri(uri), ProtocolVersion(protocolVersion) {}
+    : Method(method), ProtocolVersion(protocolVersion) {
+    std::regex backPath("\\.\\./");
+    Uri = std::regex_replace(uri, backPath, "");
+}
 
 void SLOWSReq::setMethod(std::string method) {
     Method = method;
@@ -29,7 +32,9 @@ std::map<std::string, std::string> SLOWSReq::getHeaders() {
 }
 
 void SLOWSReq::pushHeader(std::string name, std::string value) {
-    // chck unique
+    auto search = Headers.find(name);
+    if (search != Headers.end())
+        Headers.erase(search);
     Headers.insert({name, value});
 }
 

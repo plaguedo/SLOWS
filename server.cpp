@@ -13,7 +13,7 @@ void SLOWS::Listen(const unsigned short int port) {
         perror("Socket create Error");
         exit(EXIT_FAILURE);
     }
-    // memset(&sockAddr, 0, sizeof(sockAddr));
+    memset(&sockAddr, 0, sizeof(sockAddr));
     sockAddr.sin_family = PF_INET;
     sockAddr.sin_port = htons(Port);
     sockAddr.sin_addr.s_addr = INADDR_ANY;
@@ -47,7 +47,7 @@ void SLOWS::Static(std::string path) {
     HomeDir = path;
 }
 void SLOWS::Prepare(int clientSocket) {
-    printf("Someone connected. FD: %d\n", clientSocket);
+    Logger("Some connection");
     char c;
     std::string headerName, headerValue, method, uri, protocolVersion;
     while (read(clientSocket, &c, sizeof(char)) > 0 && c != ' ') {
@@ -117,55 +117,98 @@ void SLOWS::Prepare(int clientSocket) {
         headerName = "";
         headerValue = "";
     }
-    std::cout << "End Parse" << '\n'; // DEL
+    // std::cout << "End Parse" << '\n'; // DEL
     MethodeController(clientSocket, request);
     close(clientSocket);
     delete request;
 }
 void SLOWS::MethodeController(int clientSocket, SLOWSReq *req) {
+    SLOWSRes *res = new SLOWSRes();
     std::string method = req->getMethod();
     if (method == "GET") {
-        MethodeGet(clientSocket, req);
+        MethodeGet(clientSocket, req, res);
     } else if (method == "HEAD") {
-        MethodeHead(clientSocket, req);
+        MethodeHead(clientSocket, req, res);
     } else {
         BreakConnection(clientSocket, 501);
         delete req;
     }
+    delete res;
 }
 
-void SLOWS::MethodeGet(int clientSocket, SLOWSReq *req) {
-    // SLOWSRes *res = new SLOWSRes();
-    std::string uri = req->getUri();
-    std::string path = req->getUri();
-    if (access((HomeDir + path).data(), 3) != 0) {
+void SLOWS::MethodeGet(int clientSocket, SLOWSReq *req, SLOWSRes *res) {
+    std::string path;
+    if (req->getUri() == "/")
+        path = HomeDir + req->getUri() + IndexFile;
+    else
+        path = HomeDir + req->getUri();
+    Logger(path);
+    if (access(path.data(), 4) != 0) {
+        perror("Find file error");
         BreakConnection(clientSocket, 404);
         return;
     }
-    /*std::ofstream file;
-    file.open(path);
-    std::stringstream responseBody;
-    responseBody << file;
-    BreakConnection(clientSocket, 404, responseBody);*/
-
-    int resource = open(path.data(), O_RDONLY);
-    if (resource < 0) {
+    std::ifstream file;
+    file.open(path, std::ios::binary);
+    if (!file.is_open()) {
         BreakConnection(clientSocket, 404);
-        perror("Open File Error");
-        close(clientSocket);
+        file.close();
         return;
     }
-    BreakConnection(clientSocket, 200);
-    // res->Send(clientSocket);
-    // delete res;
+    int extensionPos = path.find_last_of(".");
+    std::string extension = path.substr(extensionPos + 1);
+    if (extension == "css")
+        res->PushHeader("Content-Type", "text/css");
+    else if (extension == "js")
+        res->PushHeader("Content-Type", "application/javascript");
+    else if (extension == "png")
+        res->PushHeader("Content-Type", "image/png");
+    else if (extension == "html")
+        res->PushHeader("Content-Type", "text/html; charset=utf-8");
+    else if (extension == "php") {
+        res->PushHeader("Content-Type", "text/html; charset=utf-8");
+    }
+    file.seekg(0, file.end);
+    size_t length = file.tellg();
+    file.seekg(0, file.beg);
+    std::string body(length, '\0');
+    file.read(&body[0], length);
+    res->Send(clientSocket, body);
+    file.close();
 }
-void SLOWS::MethodeHead(int clientSocket, SLOWSReq *req) {}
+void SLOWS::MethodeHead(int clientSocket, SLOWSReq *req, SLOWSRes *res) {
+    std::string path;
+    if (req->getUri() == "/")
+        path = HomeDir + req->getUri() + IndexFile;
+    else
+        path = HomeDir + req->getUri();
+    Logger(path);
+    if (access(path.data(), 4) != 0) {
+        perror("Find file error");
+        BreakConnection(clientSocket, 404);
+        return;
+    }
+    std::ifstream file;
+    file.open(path, std::ifstream::binary);
+    if (!file.is_open()) {
+        BreakConnection(clientSocket, 404);
+        file.close();
+        return;
+    }
+    int extensionPos = path.find_last_of(".");
+    std::string extension = path.substr(extensionPos + 1);
+    if (extension == "css")
+        res->PushHeader("Content-Type", "text/css");
+    else if (extension == "png")
+        res->PushHeader("Content-Type", "image/png");
+    res->Send(clientSocket);
+    file.close();
+}
 
 void SLOWS::BreakConnection(int clientSocket, short status,
                             std::stringstream responseBody) {
     std::stringstream response;
     std::string statusDescription;
-    // Add responseBody
     switch (status) {
     case 200:
         statusDescription = "OK";
@@ -234,6 +277,8 @@ void SLOWS::BreakConnection(int clientSocket, short status,
         statusDescription = "HTTP Version Not Supported";
         break;
     }
+    responseBody << "<H1>Error. Status code: " << status << " "
+                 << statusDescription << "\n";
     response << "HTTP/1.1 " << status << " " << statusDescription << "\r\n";
     response << "Version: HTTP/1.1\r\n"
              << "Content-Type: text/html; charset=utf-8\r\n";
@@ -250,6 +295,18 @@ void SLOWS::BreakConnection(int clientSocket, short status,
         exit(EXIT_FAILURE);
     }
     close(clientSocket);
+}
+
+void SLOWS::Logger(std::string msg) {
+    if (Logging) {
+        char buffer[80];
+        time_t rawtime;
+        struct tm *timeinfo;
+        time(&rawtime);
+        timeinfo = localtime(&rawtime);
+        strftime(buffer, 80, "%D %T", timeinfo);
+        std::cout << buffer << ": " << msg << std::endl;
+    }
 }
 
 SLOWS::~SLOWS() {}

@@ -1,7 +1,9 @@
 #ifndef SLOWS_REQUEST
 #define SLOWS_REQUEST
 
+#include <iostream>
 #include <map>
+#include <regex>
 #include <string>
 
 class SLOWSReq {

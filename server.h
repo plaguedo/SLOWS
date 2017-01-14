@@ -3,9 +3,10 @@
 
 #include "request.h"
 #include "response.h"
+#include <ctime>
 #include <fcntl.h>
 #include <fstream>
-#include <iostream> //DEL
+#include <iostream>
 #include <netinet/in.h>
 #include <sstream>
 #include <stdio.h>
@@ -15,7 +16,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <thread>
-#include <unistd.h>
 #include <vector>
 
 #define METHOD_CHAR_CAP 128
@@ -28,8 +28,10 @@ class SLOWS {
   private:
     unsigned short int Port;
     int SocketFD;
-    std::string HomeDir;
+    std::string HomeDir = "/var/www/.SLOWS";
+    std::string IndexFile = "index.html";
     std::vector<std::string> AllowedMethods;
+    bool Logging = true;
 
   public:
     SLOWS();
@@ -41,8 +43,10 @@ class SLOWS {
                          std::stringstream responseBody = std::stringstream());
     void MethodeController(int clientSocket, SLOWSReq *req);
 
-    void MethodeGet(int clientSocket, SLOWSReq *req);
-    void MethodeHead(int clientSocket, SLOWSReq *req);
+    void MethodeGet(int clientSocket, SLOWSReq *req, SLOWSRes *res);
+    void MethodeHead(int clientSocket, SLOWSReq *req, SLOWSRes *res);
+
+    void Logger(std::string msg);
 
     virtual ~SLOWS();
 };
