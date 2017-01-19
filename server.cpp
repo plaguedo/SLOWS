@@ -167,12 +167,16 @@ void SLOWS::MethodeGet(int clientSocket, SLOWSReq *req, SLOWSRes *res) {
     else if (extension == "php") {
         res->PushHeader("Content-Type", "text/html; charset=utf-8");
     }
-    file.seekg(0, file.end);
-    size_t length = file.tellg();
-    file.seekg(0, file.beg);
-    std::string body(length, '\0');
-    file.read(&body[0], length);
-    res->Send(clientSocket, body);
+    try {
+        file.seekg(0, file.end);
+        size_t length = file.tellg();
+        file.seekg(0, file.beg);
+        std::string body(length, '\0');
+        file.read(&body[0], length);
+        res->Send(clientSocket, body);
+    } catch (...) {
+        BreakConnection(clientSocket, 404);
+    }
     file.close();
 }
 void SLOWS::MethodeHead(int clientSocket, SLOWSReq *req, SLOWSRes *res) {
